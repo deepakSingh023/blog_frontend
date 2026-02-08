@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAppDispatch, useAppSelector } from "@/app/redux/hook";
 import { updateProfile, fetchProfile } from "@/app/redux/slices/ProfileSlice";
 import {
@@ -14,6 +15,7 @@ import CreateBlogModal from "@/app/components/CreateBlogModal";
 import UpdateBlogModal from "@/app/components/UpdateBlogModal";
 
 export default function Profile() {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const profile = useAppSelector((state) => state.profile.data);
   const blogs = useAppSelector((state) => state.blog.blogs);
@@ -57,7 +59,13 @@ export default function Profile() {
     tags: string[];
     image: File;
   }) => {
-    await dispatch(createBlog(data)).unwrap();
+    try {
+      await dispatch(createBlog(data)).unwrap();
+      setShowCreateBlogModal(false);
+    } catch (error) {
+      console.error("Failed to create blog:", error);
+      alert("Failed to create blog. Please try again.");
+    }
   };
 
   const handleUpdateBlog = async (data: {
@@ -67,15 +75,24 @@ export default function Profile() {
     tags: string[];
     image?: File;
   }) => {
-    await dispatch(updateBlog(data)).unwrap();
+    try {
+      await dispatch(updateBlog(data)).unwrap();
+      setShowUpdateBlogModal(false);
+      setEditingBlog(null);
+    } catch (error) {
+      console.error("Failed to update blog:", error);
+      alert("Failed to update blog. Please try again.");
+    }
   };
 
-  const handleEditBlog = (blog: Blog) => {
+  const handleEditBlog = (blog: Blog, e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditingBlog(blog);
     setShowUpdateBlogModal(true);
   };
 
-  const handleDeleteBlog = async (id: string) => {
+  const handleDeleteBlog = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (confirm("Are you sure you want to delete this blog?")) {
       try {
         await dispatch(deleteBlog(id)).unwrap();
@@ -84,6 +101,10 @@ export default function Profile() {
         alert("Failed to delete blog. Please try again.");
       }
     }
+  };
+
+  const navigateToBlog = (blogId: string) => {
+    router.push(`/blogs/${blogId}`);
   };
 
   const saveProfile = async () => {
@@ -192,7 +213,8 @@ export default function Profile() {
               {blogs.map((blog) => (
                 <div
                   key={blog.id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                  onClick={() => navigateToBlog(blog.id)}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
                 >
                   {blog.image && (
                     <div className="relative h-40 md:h-48 w-full">
@@ -231,13 +253,13 @@ export default function Profile() {
                       </span>
                       <div className="flex gap-3">
                         <button
-                          onClick={() => handleEditBlog(blog)}
+                          onClick={(e) => handleEditBlog(blog, e)}
                           className="text-blue-500 hover:text-blue-600 font-semibold text-xs md:text-sm transition-colors"
                         >
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDeleteBlog(blog.id)}
+                          onClick={(e) => handleDeleteBlog(blog.id, e)}
                           className="text-red-500 hover:text-red-600 font-semibold text-xs md:text-sm transition-colors"
                         >
                           Delete

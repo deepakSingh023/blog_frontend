@@ -5,14 +5,19 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { useAppSelector } from "@/app/redux/hook";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import MessageModal from "@/app/components/MessageModal";
 
-interface Comment {
-  id: number;
-  author: string;
-  authorImage: string;
+interface CommentResponse {
+  id: string;
+  userId: string;
+  blogId: string;
   content: string;
-  date: string;
+  createdAt: string;
+  username: string;
+  profilePic: string;
+  IsDeleted: boolean;
+  IsDeletable: boolean;
 }
 
 interface Blog {
@@ -40,66 +45,144 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
   const [commentText, setCommentText] = useState("");
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [comments, setComments] = useState<CommentResponse[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [hasMoreComments, setHasMoreComments] = useState(true);
+  const [page, setPage] = useState(0);
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, message: '', showAuthButtons: false });
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   
   const userId = useAppSelector((state) => state.auth.user?.id);
+  const token = useAppSelector((state) => state.auth.token);
   const isAuthenticated = useAppSelector((state) => Boolean(state.auth.token));
-
-  console.log("Blog ID from params:", blogId);
-  console.log("User ID from state:", userId);
+  
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    handleBlogFetch();
-  }, [blogId]);
+    if (blogId) {
+      handleBlogFetch();
+    }
+  }, [blogId, userId]);
+
+  useEffect(() => {
+    if (blog) {
+      loadComments(0);
+    }
+  }, [blog, userId]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreComments && !commentsLoading) {
+          loadComments(page + 1);
+        }
+      },
+      { threshold: 1.0 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMoreComments, commentsLoading, page]);
 
   const handleBlogFetch = async () => {
     try {
       setLoading(true);
-      const url = userId 
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/blog/getBlog?userId=${userId}&blogId=${blogId}`
-        : `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/blog/getBlog?blogId=${blogId}`;
       
+      const params = new URLSearchParams();
+      params.append('blogId', blogId);
+      if (userId) {
+        params.append('userId', userId);
+      }
+      
+      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/blog/getBlog?${params.toString()}`;
       const res = await axios.get(url);
+      
       setBlog(res.data);
       setIsLiked(res.data.liked);
       setLoading(false);
-    } catch (err) {
-      console.log(err);
+    } catch (err: any) {
+      console.error("Error fetching blog:", err);
       setLoading(false);
     }
   };
 
-  const toggleLike = async () => {
-    // Check if user is authenticated
-    if (!isAuthenticated || !userId) {
-      const shouldRedirect = window.confirm("You need to sign up to like this blog. Would you like to go to the signup page?");
-      if (shouldRedirect) {
-        router.push('/signup');
+  const loadComments = async (pageNum: number) => {
+    if (commentsLoading) return;
+    
+    try {
+      setCommentsLoading(true);
+      
+      const params = new URLSearchParams();
+      params.append('blogId', blogId);
+      params.append('page', pageNum.toString());
+      params.append('size', '10');
+      if (userId) {
+        params.append('userId', userId);
       }
+      
+      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/like&comment/get-comments?${params.toString()}`;
+      const res = await axios.get(url);
+      const newComments = res.data.filter((comment: CommentResponse) => !comment.IsDeleted);
+      
+      if (newComments.length < 10) {
+        setHasMoreComments(false);
+      }
+      
+      setComments(prev => pageNum === 0 ? newComments : [...prev, ...newComments]);
+      setPage(pageNum);
+      setCommentsLoading(false);
+    } catch (err) {
+      console.error("Error loading comments:", err);
+      setCommentsLoading(false);
+    }
+  };
+
+  const toggleLike = async () => {
+    if (!isAuthenticated || !userId) {
+      setModalConfig({
+        isOpen: true,
+        message: "Please log in to like this blog",
+        showAuthButtons: true
+      });
       return;
     }
 
     try {
+      const authToken = token;
+      
+      if (!authToken) {
+        console.error('No auth token available');
+        setModalConfig({
+          isOpen: true,
+          message: "Authentication error. Please log in again.",
+          showAuthButtons: true
+        });
+        return;
+      }
+
       if (isLiked) {
-        // Remove like
         await axios.post(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/like&comment/removeLike?blogId=${blogId}`,
           {},
           {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('token')}` // Adjust based on your auth setup
+              Authorization: `Bearer ${authToken}`
             }
           }
         );
         setIsLiked(false);
         setBlog(blog ? { ...blog, likes: blog.likes - 1 } : null);
       } else {
-        // Add like
         await axios.post(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/like&comment/like?blogId=${blogId}`,
           {},
           {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('token')}` // Adjust based on your auth setup
+              Authorization: `Bearer ${authToken}`
             }
           }
         );
@@ -113,40 +196,86 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
 
   const handleCommentClick = () => {
     if (!isAuthenticated || !userId) {
-      const shouldRedirect = window.confirm("You need to sign up to comment on this blog. Would you like to go to the signup page?");
-      if (shouldRedirect) {
-        router.push('/signup');
-      }
+      setModalConfig({
+        isOpen: true,
+        message: "Please log in to comment on this blog",
+        showAuthButtons: true
+      });
       return;
     }
-    // Focus on comment input
     document.getElementById('comment-input')?.focus();
   };
 
   const addComment = async () => {
     if (!isAuthenticated || !userId) {
-      const shouldRedirect = window.confirm("You need to sign up to comment. Would you like to go to the signup page?");
-      if (shouldRedirect) {
-        router.push('/signup');
-      }
+      setModalConfig({
+        isOpen: true,
+        message: "Please log in to comment",
+        showAuthButtons: true
+      });
       return;
     }
 
     if (!commentText.trim()) return;
 
     try {
-      // TODO: Add your comment API call here when the controller is ready
-      // await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/like&comment/comment`, {
-      //   blogId,
-      //   content: commentText
-      // });
+      const authToken = token;
       
-      // For now, just clear the input
+      if (!authToken) {
+        console.error('No auth token available');
+        return;
+      }
+
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/like&comment/create`,
+        {
+          blogId,
+          content: commentText
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        }
+      );
+      
       setCommentText("");
-      // Refresh blog data to get updated comments
-      handleBlogFetch();
+      setBlog(blog ? { ...blog, comments: blog.comments + 1 } : null);
+      setComments([]);
+      setPage(0);
+      setHasMoreComments(true);
+      loadComments(0);
     } catch (err) {
       console.error("Error adding comment:", err);
+    }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    try {
+      const authToken = token;
+      
+      if (!authToken) {
+        console.error('No auth token available');
+        return;
+      }
+
+      setDeletingCommentId(commentId);
+      await axios.delete(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/like&comment/removeComment?commentId=${commentId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        }
+      );
+      
+      setComments(comments.filter(c => c.id !== commentId));
+      setBlog(blog ? { ...blog, comments: blog.comments - 1 } : null);
+      setDeletingCommentId(null);
+      setOpenDropdown(null);
+    } catch (err) {
+      console.error("Error deleting comment:", err);
+      setDeletingCommentId(null);
     }
   };
 
@@ -160,12 +289,19 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
     if (!confirmDelete) return;
 
     try {
+      const authToken = token;
+      
+      if (!authToken) {
+        console.error('No auth token available');
+        return;
+      }
+
       setIsDeleting(true);
       await axios.delete(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/blog/deleteBlog/${blogId}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}` // Adjust based on your auth setup
+            Authorization: `Bearer ${authToken}`
           }
         }
       );
@@ -181,7 +317,10 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="text-gray-600">Loading blog...</div>
+        </div>
       </div>
     );
   }
@@ -191,6 +330,7 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4">Blog not found</h2>
+          <p className="text-gray-600 mb-6">The blog you're looking for doesn't exist or has been deleted.</p>
           <button
             onClick={() => router.push('/blog-feed')}
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold"
@@ -204,8 +344,14 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <MessageModal 
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+        message={modalConfig.message}
+        showAuthButtons={modalConfig.showAuthButtons}
+      />
+      
       <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
-        {/* Back Button */}
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-6 text-sm md:text-base"
@@ -214,9 +360,7 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
           <span>Back</span>
         </button>
 
-        {/* Blog Content */}
         <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
-          {/* Author Info and Action Buttons */}
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <Image
@@ -234,7 +378,6 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
               </div>
             </div>
 
-            {/* Edit and Delete Buttons (Only visible to owner) */}
             {blog.editable && (
               <div className="flex gap-2">
                 <button
@@ -254,12 +397,10 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
             )}
           </div>
 
-          {/* Title */}
           <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-6">
             {blog.title}
           </h1>
 
-          {/* Tags */}
           {blog.tags && blog.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-6">
               {blog.tags.map((tag, index) => (
@@ -273,7 +414,6 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
             </div>
           )}
 
-          {/* Blog Image */}
           {blog.image && (
             <div className="mb-6 rounded-xl overflow-hidden">
               <Image
@@ -286,7 +426,6 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
             </div>
           )}
 
-          {/* Full Content */}
           <div className="prose max-w-none mb-8">
             {blog.content.split('\n\n').map((paragraph, index) => (
               <p key={index} className="mb-4 text-gray-700 leading-relaxed">
@@ -295,7 +434,6 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
             ))}
           </div>
 
-          {/* Like and Comment Section */}
           <div className="flex items-center gap-6 py-4 border-t border-b border-gray-200 mb-6">
             <button
               onClick={toggleLike}
@@ -315,14 +453,13 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
             </button>
           </div>
 
-          {/* Comment Input */}
           <div className="mb-6">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Comments</h3>
             <div className="flex gap-3">
               <input
                 id="comment-input"
                 type="text"
-                placeholder={isAuthenticated ? "Write a comment..." : "Sign up to comment..."}
+                placeholder={isAuthenticated ? "Write a comment..." : "Log in to comment..."}
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 onKeyPress={(e) => {
@@ -335,28 +472,80 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
                     handleCommentClick();
                   }
                 }}
-                className="flex-1 px-3 md:px-4 py-2 md:py-3 border rounded-lg text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={!isAuthenticated}
+                className="flex-1 px-3 md:px-4 py-2 md:py-3 border rounded-lg text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
               <button
                 onClick={addComment}
-                className="px-4 md:px-6 py-2 md:py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold text-sm md:text-base transition-colors"
+                disabled={!isAuthenticated}
+                className="px-4 md:px-6 py-2 md:py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold text-sm md:text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Post
               </button>
             </div>
           </div>
 
-          {/* Comments List */}
           <div className="space-y-4">
-            {blog.comments === 0 ? (
+            {comments.length === 0 && !commentsLoading ? (
               <p className="text-center text-gray-500 py-8">
                 No comments yet. Be the first to comment!
               </p>
             ) : (
-              <p className="text-gray-500 text-center py-4">
-                Comments feature coming soon! ({blog.comments} comments)
-              </p>
-              // TODO: Map through actual comments when comment endpoint is ready
+              <>
+                {comments.map((comment) => (
+                  <div key={comment.id} className="flex gap-3 p-4 bg-gray-50 rounded-lg">
+                    <Image
+                      src={comment.profilePic || "/default-avatar.png"}
+                      alt={comment.username}
+                      width={40}
+                      height={40}
+                      className="rounded-full"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-gray-800">{comment.username}</p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(comment.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        
+                        {comment.IsDeletable && isAuthenticated && (
+                          <div className="relative">
+                            <button
+                              onClick={() => setOpenDropdown(openDropdown === comment.id ? null : comment.id)}
+                              className="text-gray-600 hover:text-gray-800 p-1"
+                            >
+                              <span className="text-xl">⋮</span>
+                            </button>
+                            
+                            {openDropdown === comment.id && (
+                              <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg z-10">
+                                <button
+                                  onClick={() => deleteComment(comment.id)}
+                                  disabled={deletingCommentId === comment.id}
+                                  className="px-4 py-2 text-red-600 hover:bg-red-50 w-full text-left text-sm disabled:opacity-50"
+                                >
+                                  {deletingCommentId === comment.id ? "Deleting..." : "Delete"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-gray-700 mt-2">{comment.content}</p>
+                    </div>
+                  </div>
+                ))}
+                
+                {commentsLoading && (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500">Loading more comments...</p>
+                  </div>
+                )}
+                
+                <div ref={observerTarget} className="h-4" />
+              </>
             )}
           </div>
         </div>

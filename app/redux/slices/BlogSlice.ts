@@ -65,9 +65,6 @@ export const fetchBlogs = createAsyncThunk<
         }
       );
 
-      console.log("Fetched blogs response:", response.data);
-      console.log("Fetched blogs response data:", response.data.items);
-
       return {
         content: response.data.items || [],
         cursor: response.data.nextCursor || null,

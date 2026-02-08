@@ -17,14 +17,20 @@ const initialState: ProfileState = {
 
 export const fetchProfile = createAsyncThunk<Profile, void, { state: RootState }>(
   "profile/fetch",
-  async (_, { getState }) => {
-    const token = getState().auth.token;
-    const res = await api.get<Profile>("/profile/getProfile", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return res.data;
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const res = await api.get<Profile>("/profile/getProfile", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return res.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch profile"
+      );
+    }
   }
 );
 
@@ -34,17 +40,25 @@ export const updateProfile = createAsyncThunk<
   { state: RootState }
 >(
   "profile/update",
-  async ({ bio, image }, { getState }) => {
-    const token = getState().auth.token;
-    const formData = new FormData();
-    if (bio) formData.append("bio", bio);
-    if (image) formData.append("image", image);
-    const res = await api.post<Profile>("/profile/update", formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return res.data;
+  async ({ bio, image }, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      const formData = new FormData();
+      
+      if (bio) formData.append("bio", bio);
+      if (image) formData.append("image", image);
+      
+      const res = await api.post<Profile>("/profile/update", formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return res.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update profile"
+      );
+    }
   }
 );
 
@@ -69,7 +83,7 @@ const profileSlice = createSlice({
       })
       .addCase(fetchProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || "Failed to fetch profile";
+        state.error = action.payload as string || "Failed to fetch profile";
       })
       .addCase(updateProfile.pending, (state) => {
         state.loading = true;
@@ -81,7 +95,7 @@ const profileSlice = createSlice({
       })
       .addCase(updateProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || "Failed to update profile";
+        state.error = action.payload as string || "Failed to update profile";
       });
   },
 });

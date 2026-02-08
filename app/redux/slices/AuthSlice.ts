@@ -10,9 +10,52 @@ interface AuthState {
   error: string | null;
 }
 
+// Helper functions to manage localStorage
+const loadAuthFromStorage = (): Pick<AuthState, 'user' | 'token'> => {
+  if (typeof window === 'undefined') {
+    return { user: null, token: null };
+  }
+  
+  try {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    
+    return { user, token };
+  } catch (error) {
+    console.error('Error loading auth from storage:', error);
+    return { user: null, token: null };
+  }
+};
+
+const saveAuthToStorage = (token: string, user: User) => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+  } catch (error) {
+    console.error('Error saving auth to storage:', error);
+  }
+};
+
+const clearAuthFromStorage = () => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  } catch (error) {
+    console.error('Error clearing auth from storage:', error);
+  }
+};
+
+// Initialize state with data from localStorage
+const { user: storedUser, token: storedToken } = loadAuthFromStorage();
+
 const initialState: AuthState = {
-  user: null,
-  token: null,
+  user: storedUser,
+  token: storedToken,
   loading: false,
   error: null,
 };
@@ -58,14 +101,21 @@ const authSlice = createSlice({
       state.token = null;
       state.error = null;
       state.loading = false;
+      clearAuthFromStorage();
     },
     resetAuthState(state) {
       state.loading = false;
       state.error = null;
     },
+    restoreAuth(state) {
+      const { user, token } = loadAuthFromStorage();
+      state.user = user;
+      state.token = token;
+    },
   },
   extraReducers: (builder) => {
     builder
+      // Register
       .addCase(registerUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -73,12 +123,23 @@ const authSlice = createSlice({
       .addCase(registerUser.fulfilled, (state, action: PayloadAction<AuthResponse>) => {
         state.loading = false;
         state.token = action.payload.token;
-        state.user = action.payload.user;
+        
+        const user: User = {
+          email: action.payload.email,
+          id: action.payload.id,
+          username: action.payload.username,
+          role: action.payload.role,
+        };
+        
+        state.user = user;
+        saveAuthToStorage(action.payload.token, user);
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload ?? "Registration failed";
       })
+      
+      // Login
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -86,7 +147,16 @@ const authSlice = createSlice({
       .addCase(loginUser.fulfilled, (state, action: PayloadAction<AuthResponse>) => {
         state.loading = false;
         state.token = action.payload.token;
-        state.user = action.payload.user;
+        
+        const user: User = {
+          id: action.payload.id,
+          username: action.payload.username,
+          email: action.payload.email,
+          role: action.payload.role,
+        };
+        
+        state.user = user;
+        saveAuthToStorage(action.payload.token, user);
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
@@ -95,5 +165,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, resetAuthState } = authSlice.actions;
+export const { logout, resetAuthState, restoreAuth } = authSlice.actions;
 export default authSlice.reducer;
