@@ -13,6 +13,7 @@ import { clearBlogs } from "@/app/redux/slices/BlogSlice";
 interface BackendSearchResult {
   type: "BLOG" | "AUTHOR";
   id: string;
+  username?:String;
   title: string;
   score: number;
 }
@@ -20,6 +21,7 @@ interface BackendSearchResult {
 interface DisplaySearchResult {
   id: string;
   type: "BLOG" | "AUTHOR";
+  username?:String;
   title: string;
   score: number;
 }
@@ -87,6 +89,7 @@ export default function Header() {
       const mappedResults: DisplaySearchResult[] = response.data.map(result => ({
         id: result.id,
         type: result.type,
+        username:result.username,
         title: result.title,
         score: result.score
       }));
