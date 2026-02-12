@@ -13,7 +13,7 @@ import { clearBlogs } from "@/app/redux/slices/BlogSlice";
 interface BackendSearchResult {
   type: "BLOG" | "AUTHOR";
   id: string;
-  username?:String;
+  username?: string;
   title: string;
   score: number;
 }
@@ -21,7 +21,7 @@ interface BackendSearchResult {
 interface DisplaySearchResult {
   id: string;
   type: "BLOG" | "AUTHOR";
-  username?:String;
+  username?: string;
   title: string;
   score: number;
 }
@@ -85,12 +85,17 @@ export default function Header() {
         }
       );
       
-      // Map backend results to display format
+      console.log("Search results from backend:", response.data);
+      
+      // Map backend results to display format with proper fallbacks
       const mappedResults: DisplaySearchResult[] = response.data.map(result => ({
         id: result.id,
         type: result.type,
-        username:result.username,
-        title: result.title,
+        username: result.username,
+        // For AUTHOR type, use username if title is missing; for BLOG use title or fallback
+        title: result.type === "AUTHOR" 
+          ? (result.username || result.title || 'Unknown Author')
+          : (result.title || 'Untitled Blog'),
         score: result.score
       }));
       
@@ -112,7 +117,7 @@ export default function Header() {
     if (result.type === "BLOG") {
       router.push(`/blogs/${result.id}`);
     } else if (result.type === "AUTHOR") {
-      router.push(`/profile/${result.id}`);
+      router.push(`/info/${result.id}`);
     }
   };
 
@@ -162,7 +167,7 @@ export default function Header() {
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <h4 className="font-semibold text-gray-900 mb-1">
-                              {result.title || 'Untitled'}
+                              {result.title}
                             </h4>
                             <div className="flex items-center gap-2">
                               <span className={`text-xs px-2 py-1 rounded-full ${
@@ -172,6 +177,11 @@ export default function Header() {
                               }`}>
                                 {result.type === 'BLOG' ? 'Blog' : 'Author'}
                               </span>
+                              {result.type === 'AUTHOR' && result.username && (
+                                <span className="text-xs text-gray-500">
+                                  @{result.username}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -275,7 +285,7 @@ export default function Header() {
                         className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
                       >
                         <h4 className="font-semibold text-gray-900 mb-1 text-sm">
-                          {result.title || 'Untitled'}
+                          {result.title}
                         </h4>
                         <div className="flex items-center gap-2">
                           <span className={`text-xs px-2 py-1 rounded-full ${
@@ -285,6 +295,11 @@ export default function Header() {
                           }`}>
                             {result.type === 'BLOG' ? 'Blog' : 'Author'}
                           </span>
+                          {result.type === 'AUTHOR' && result.username && (
+                            <span className="text-xs text-gray-500">
+                              @{result.username}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
