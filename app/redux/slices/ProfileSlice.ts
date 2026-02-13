@@ -20,7 +20,7 @@ export const fetchProfile = createAsyncThunk<Profile, void, { state: RootState }
   async (_, { getState, rejectWithValue }) => {
     try {
       const token = getState().auth.token;
-      const res = await api.get<Profile>("/profile/getProfile", {
+      const res = await api.get<Profile>("/api/profile/getProfile", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -48,7 +48,7 @@ export const updateProfile = createAsyncThunk<
       if (bio) formData.append("bio", bio);
       if (image) formData.append("image", image);
       
-      const res = await api.post<Profile>("/profile/update", formData, {
+      const res = await api.post<Profile>("/api/profile/update", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
