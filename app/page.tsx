@@ -19,13 +19,13 @@ export default function Home() {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
-              onClick={() => router.push('/blog-feed')}
+              onClick={() => router.push('/blogs')}
               className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 md:px-10 md:py-4 rounded-lg font-semibold text-base md:text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 w-full sm:w-auto"
             >
               Read Blogs
             </button>
             <button
-              onClick={() => router.push('/signup')}
+              onClick={() => router.push('/auth/signup')}
               className="bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-600 px-8 py-3 md:px-10 md:py-4 rounded-lg font-semibold text-base md:text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 w-full sm:w-auto"
             >
               Create Account
@@ -136,13 +136,13 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
-              onClick={() => router.push('/signup')}
+              onClick={() => router.push('/auth/signup')}
               className="bg-white hover:bg-gray-100 text-blue-600 px-8 py-3 md:px-10 md:py-4 rounded-lg font-semibold text-base md:text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 w-full sm:w-auto"
             >
               Get Started Free
             </button>
             <button
-              onClick={() => router.push('/blog-feed')}
+              onClick={() => router.push('/blogs')}
               className="bg-transparent hover:bg-white/10 text-white border-2 border-white px-8 py-3 md:px-10 md:py-4 rounded-lg font-semibold text-base md:text-lg transition-all duration-300 w-full sm:w-auto"
             >
               Explore Blogs
