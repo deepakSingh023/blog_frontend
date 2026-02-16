@@ -22,6 +22,7 @@ interface CommentResponse {
 
 interface Blog {
   id: string;
+  userId:String;
   title: string;
   content: string;
   tags: string[];
@@ -306,7 +307,7 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
         }
       );
       alert("Blog deleted successfully!");
-      router.push('/blog-feed');
+      router.push('/blogs');
     } catch (err) {
       console.error("Error deleting blog:", err);
       alert("Failed to delete blog. Please try again.");
@@ -332,7 +333,7 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
           <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4">Blog not found</h2>
           <p className="text-gray-600 mb-6">The blog you're looking for doesn't exist or has been deleted.</p>
           <button
-            onClick={() => router.push('/blog-feed')}
+            onClick={() => router.push('/blogs')}
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold"
           >
             Back to Feed
@@ -362,7 +363,7 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
 
         <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3" onClick={() => router.push(`info/${blog.userId}`)}>
               <Image
                 src={blog.userImage || "/default-avatar.png"}
                 alt={blog.username}

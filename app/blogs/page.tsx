@@ -9,6 +9,7 @@ import MessageModal from "@/app/components/MessageModal";
 
 interface FeedBlogDto {
   id: string;
+  userId: String;
   title: string;
   content: string;
   image?: string;
@@ -185,7 +186,7 @@ export default function BlogFeed() {
           {blogs.map((blog) => (
             <div key={blog.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
               {/* User Info Header */}
-              <div className="p-4 md:p-6 flex items-center gap-3 border-b border-gray-100">
+              <div onClick={() => router.push(`/info/${blog.userId}`)} className="p-4 md:p-6 flex items-center gap-3 border-b border-gray-100">
                 {blog.userImage ? (
                   <Image
                     src={blog.userImage}
