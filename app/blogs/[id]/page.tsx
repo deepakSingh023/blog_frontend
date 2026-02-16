@@ -363,7 +363,7 @@ export default function BlogPage({ params }: { params: Promise<{ id: string }> }
 
         <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-            <div className="flex items-center gap-3" onClick={() => router.push(`info/${blog.userId}`)}>
+            <div className="flex items-center gap-3" onClick={() => router.push(`/info/${blog.userId}`)}>
               <Image
                 src={blog.userImage || "/default-avatar.png"}
                 alt={blog.username}
