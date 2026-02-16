@@ -22,13 +22,13 @@ export default function MessageModal({ isOpen, onClose, message, showAuthButtons
         {showAuthButtons ? (
           <div className="flex gap-3">
             <button
-              onClick={() => router.push('/login')}
+              onClick={() => router.push('/auth/login')}
               className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors"
             >
               Login
             </button>
             <button
-              onClick={() => router.push('/signup')}
+              onClick={() => router.push('/auth/signup')}
               className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors"
             >
               Sign Up
